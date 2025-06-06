@@ -3,46 +3,85 @@
 
 #include <iostream>
 #include <stdlib.h>
+#include <map>
 using namespace std;
 
+enum Object {
+    OBJ_UNKNOWN,
+
+    OBJ_SPACE,
+    OBJ_WALL,
+    OBJ_TARGET,
+    OBJ_PLAYER,
+    OBJ_PLAYER_ON_TARGET,
+    OBJ_BOX,
+    OBJ_BOX_ON_TARGET,
+};
+
+void gameContinue();
+void gameFinsihed();
 char getInput();
-bool updateGame(char input, char map[5][8], char rmap[5][8], int target[2][2], int &x, int &y);
-void draw(char map[5][8], bool isFinished);
-bool isFinished(char map[5][8], int target[2][2]);
+void updateGame(char input, Object* sMap, int width, int height, int& px, int& py, int& numFreeBox);
+int transPosAbs(int x, int y, int width);
+void draw(const Object* sMap, int width, int height);
+Object dictFind(char c);
+int transPosX(int position, int width);
+int transPosY(int position, int width);
+void initialization(const char map[], int width, Object* state, int &px, int &py, int &numFreeBox);
+
+const map<char, Object> dictChar2Object{
+    {' ', OBJ_SPACE},
+    {'#', OBJ_WALL},
+    {'.', OBJ_TARGET},
+    {'p', OBJ_PLAYER},
+    {'P', OBJ_PLAYER_ON_TARGET},
+    {'o', OBJ_BOX},
+    {'O', OBJ_BOX_ON_TARGET},
+};
+
+const char listIndex2Char[] = { '*', ' ', '#', '.' , 'p' , 'P' , 'o' , 'O' };
+
+const char gMap[] = "\
+########\n\
+# .. p #\n\
+# oo   #\n\
+#      #\n\
+########\n\
+";
+
+const int gWidth = 8;
+const int gHeight = 5;
 
 int main()
 {
-    char rmap[5][8] = {
-        {'#', '#', '#', '#', '#', '#', '#', '#'},
-        {'#', ' ', '.', '.', ' ', ' ', ' ', '#'},
-        {'#', ' ', ' ', ' ', ' ', ' ', ' ', '#'},
-        {'#', ' ', ' ', ' ', ' ', ' ', ' ', '#'},
-        {'#', '#', '#', '#', '#', '#', '#', '#'},
-    };
-    char map[5][8] = {
-        {'#', '#', '#', '#', '#', '#', '#', '#'},
-        {'#', ' ', '.', '.', ' ', 'p', ' ', '#'},
-        {'#', ' ', 'o', 'o', ' ', ' ', ' ', '#'},
-        {'#', ' ', ' ', ' ', ' ', ' ', ' ', '#'},
-        {'#', '#', '#', '#', '#', '#', '#', '#'},
-    };
-    int x = 1;
-    int y = 5;
-    int target[2][2]{
-        {1, 2},
-        {1, 3}
-    };
     bool isFinish = false;
+    int px, py, numFreeBox = 0;
+    Object* sMap = new Object[gWidth * gHeight];
 
-    draw(map, isFinish);
+    initialization(gMap, gWidth, sMap, px, py, numFreeBox);
     while (true) {
-        char opt = getInput();
-        isFinish = updateGame(opt, map, rmap, target, x, y);
-        draw(map, isFinish);
-        if (isFinish) {
+        draw(sMap, gWidth, gHeight);
+        if (!numFreeBox) {
             break;
         }
+        gameContinue();
+        //cout << numFreeBox << endl;
+        char opt = getInput();
+        updateGame(opt, sMap, gWidth, gHeight, px, py, numFreeBox);
     }
+    gameFinsihed();
+    delete[] sMap;
+    sMap = 0;
+
+    return 0;
+}
+
+void gameContinue() {
+    cout << "Press w a s d to move the player:";
+}
+
+void gameFinsihed() {
+    cout << "Congratulation! You Finsih the Game!" << endl;
 }
 
 char getInput() {
@@ -51,87 +90,125 @@ char getInput() {
     return c;
 }
 
-bool updateGame(char input, char map[5][8], char rmap[5][8], int target[2][2], int& x, int& y) {
-    int bx = 0, by = 0;
+void updateGame(char input, Object* sMap, int width, int height, int& px, int& py, int& numFreeBox) {
+    int dx = 0, dy = 0;
+    int tAbs;
     switch (input) {
     case 'a':
-        bx = 0;
-        by = -1;
+        dy = -1;
         break;
     case 'd':
-        bx = 0;
-        by = 1;
+        dy = 1;
         break;
     case 'w':
-        bx = -1;
-        by = 0;
+        dx = -1;
         break;
     case 's':
-        bx = 1;
-        by = 0;
+        dx = 1;
         break;
     default:
         break;
     }
-    int xx, yy;
-    xx = x + bx;
-    yy = y + by;
-    cout << xx << " " << yy << endl;
-    switch (map[xx][yy]) {
-    case '#':
+    int nx, ny;
+    nx = px + dx;
+    ny = py + dy;
+    //cout << nx << " " << ny << " " << transPosAbs(nx, ny, width) << endl;
+    switch (sMap[transPosAbs(nx, ny, width)]) {
+    case OBJ_WALL:
         break;
-    case 'o':
-        bx += xx;
-        by += yy;
-        if (map[bx][by] == '#' || map[bx][by] == 'o') {
+    case OBJ_BOX:
+    case OBJ_BOX_ON_TARGET:
+        dx += nx;
+        dy += ny;
+        tAbs = transPosAbs(dx, dy, width);
+        if (sMap[tAbs] == OBJ_WALL || sMap[tAbs] == OBJ_BOX || sMap[tAbs] == OBJ_BOX_ON_TARGET) {
             break;
         }
-        else {
-            map[bx][by] = 'o';
+        else if (sMap[tAbs] == OBJ_TARGET) {
+            sMap[tAbs] = OBJ_BOX_ON_TARGET;
+            numFreeBox--;
         }
-    case '.':
-    case ' ':
-        map[x][y] = rmap[x][y];
-        x = xx;
-        y = yy;
-        map[x][y] = 'p';
-        if (isFinished(map, target)) {
-            map[x][y] = rmap[x][y];
-            map[x][y] = 'p';
-            return true;
+        else {
+            sMap[tAbs] = OBJ_BOX;
+        }
+    case OBJ_TARGET:
+    case OBJ_SPACE:
+        tAbs = transPosAbs(px, py, width);
+        sMap[tAbs] = (sMap[tAbs] == OBJ_PLAYER_ON_TARGET) ? OBJ_TARGET : OBJ_SPACE;
+        px = nx;
+        py = ny;
+
+        tAbs = transPosAbs(px, py, width);
+        if (sMap[tAbs] == OBJ_BOX_ON_TARGET || sMap[tAbs] == OBJ_TARGET) {
+            if (sMap[tAbs] == OBJ_BOX_ON_TARGET) {
+                numFreeBox++;
+            }
+            sMap[tAbs] = OBJ_PLAYER_ON_TARGET;
+        }
+        else {
+            sMap[tAbs] = OBJ_PLAYER;
         }
         break;
     default:
         break;
     }
-    return false;
 }
 
-void draw(char map[5][8], bool isFinished) {
+int transPosAbs(int x, int y, int width) {
+    return x * width + y;
+}
+
+void draw(const Object* sMap, int width, int height) {
     system("cls");
-    for (int i = 0; i < 5; i++) {
-        for (int j = 0; j < 8; j++) {
-            cout << map[i][j];
+
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            cout << listIndex2Char[sMap[transPosAbs(i, j, width)]];
+            //cout << transPosAbs(i, j, width);
         }
         cout << endl;
     }
-    if (isFinished) {
-        cout << "Congratulation! You win!";
-    }
-    else {
-        cout << "left: a\nright: d\nup: w\ndown: s\nPress your option:";
-    }
-    
 }
 
-bool isFinished(char map[5][8], int target[2][2]) {
-    //draw(map, false);
-    for (int i = 0; i < 2; i++) {
-        if (map[target[i][0]][target[i][1]] != 'o') {
-            return false;
-        }
+Object dictFind(char c) {
+    auto iter = dictChar2Object.find(c);
+    if (iter != dictChar2Object.end()) {
+        return iter->second;
     }
-    return true;
+    else {
+        return OBJ_UNKNOWN;
+    }
+}
+
+int transPosX(int position, int width) {
+    return position / width;
+}
+
+int transPosY(int position, int width) {
+    return position % width;
+}
+
+void initialization(const char map[], int width, Object* state, int &px, int &py, int &numFreeBox) {
+    int pointer_map = 0;
+    int pointer_state = 0;
+    while (map[pointer_map]) {
+        Object tObj = dictFind(map[pointer_map]);
+        if (tObj != OBJ_UNKNOWN) {
+            state[pointer_state] = tObj;
+            if (tObj == OBJ_PLAYER || tObj == OBJ_PLAYER_ON_TARGET) {
+                px = transPosX(pointer_state, width);
+                py = transPosY(pointer_state, width);
+            }
+            else if (tObj == OBJ_TARGET) {
+                numFreeBox++;
+            }
+            pointer_state++;
+        }
+        pointer_map++;
+        //cout << pointer_state << " " << pointer_map << endl;
+        //char x;
+        //cin >> x;
+    }
 }
 
 // 运行程序: Ctrl + F5 或调试 >“开始执行(不调试)”菜单
