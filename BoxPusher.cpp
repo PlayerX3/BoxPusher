@@ -1,6 +1,7 @@
 ﻿// BoxPusher.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
 //
 
+#include <fstream>
 #include <iostream>
 #include <stdlib.h>
 #include <map>
@@ -18,6 +19,8 @@ enum Object {
     OBJ_BOX_ON_TARGET,
 };
 
+char* readMap(string path, int &fileSize);
+bool checkMap(const char* cMap, int size, int &width, int &height);
 void gameContinue();
 void gameFinsihed();
 char getInput();
@@ -41,39 +44,62 @@ const map<char, Object> dictChar2Object{
 
 const char listIndex2Char[] = { '*', ' ', '#', '.' , 'p' , 'P' , 'o' , 'O' };
 
-const char gMap[] = "\
-########\n\
-# .. p #\n\
-# oo   #\n\
-#      #\n\
-########\n\
-";
-
-const int gWidth = 8;
-const int gHeight = 5;
-
 int main()
 {
     bool isFinish = false;
-    int px, py, numFreeBox = 0;
-    Object* sMap = new Object[gWidth * gHeight];
-
-    initialization(gMap, gWidth, sMap, px, py, numFreeBox);
+    int px, py, fileSize, width, height, numFreeBox = 0;
+    char* cMap = readMap("maps\\Level_1.txt", fileSize);
+    checkMap(cMap, fileSize, width, height);
+    Object* sMap = new Object[width * height];
+    //cout << fileSize << " " << width << " " << height << endl;
+    //cin.get();
+    initialization(cMap, width, sMap, px, py, numFreeBox);
     while (true) {
-        draw(sMap, gWidth, gHeight);
+        draw(sMap, width, height);
         if (!numFreeBox) {
             break;
         }
         gameContinue();
         //cout << numFreeBox << endl;
         char opt = getInput();
-        updateGame(opt, sMap, gWidth, gHeight, px, py, numFreeBox);
+        updateGame(opt, sMap, width, height, px, py, numFreeBox);
     }
     gameFinsihed();
     delete[] sMap;
+    delete[] cMap;
     sMap = 0;
+    cMap = 0;
 
     return 0;
+}
+
+char* readMap(string path, int& fileSize) {
+    ifstream file(path, ifstream::binary);
+    file.seekg(0, ifstream::end);
+    fileSize = static_cast<int>(file.tellg());
+    //cout << fileSize << endl;
+    //cin.get();
+    file.seekg(0, ifstream::beg);
+    char* map = new char[fileSize];
+    file.read(map, fileSize);
+    return map;
+}
+
+/*
+    有待改进，目前进检测宽度和高度，无法检测错误地图。
+*/
+bool checkMap(const char* cMap, int size, int& width, int& height) {
+    int idx = 0;
+    while (cMap[idx] != '\n') {
+        //cout << int(cMap[idx]) << " " << idx << endl;
+        idx++;
+    }
+    //cout << endl;
+    //cout << size << " " << idx << endl;
+    //cin.get();
+    width = idx - 1;
+    height = size / idx;
+    return true;
 }
 
 void gameContinue() {
